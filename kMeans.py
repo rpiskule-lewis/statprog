@@ -10,26 +10,28 @@
 import sys
 import math
 
-datafile="prog2-input-data.txt"
+inputDatafile="prog2-input-data.txt"
+outputDatafile="pickle"
 
 class kMeans:
-    def __init__(self,k,data,maxIterations = 100):
+    def __init__(self,k,maxIterations = 100):
         # 1. Pick k, the number of clusters (input)
         self.k = k
-        self.data = data
-        self.assignments = [0] * 100
         self.currentIteration = 0
         self.maxIterations = maxIterations
 
-    def run(self):
+    def fit(self,data):
+        data = data
+        self.assignments = [0] * len(data)
+        
         # 2. Initialize clusters by picking one centroid per cluster
         # For this assignment you can pick the first k points as
         # the initial centroids for each corresponding cluster
-        centroids = self.initializeClusters()
+        centroids = self.initializeClusters(data)
 
         # 3. For each point, place it in the cluster whose current
         # centroid it is nearest
-        self.assignPointsToCluster(centroids)
+        self.assignPointsToCluster(centroids,data)
 
         converged = False
         iterations = 0
@@ -40,8 +42,7 @@ class kMeans:
 
             # 5. Reassign all points to their closest centroid. This
             # sometimes moves points between clusters
-            self.assignPointsToCluster(centroids)
-
+            self.assignPointsToCluster(centroids,data)
 
             if (converged == True):
                 break
@@ -51,11 +52,13 @@ class kMeans:
                 and iterations > self.maxIterations):
                 break
 
-    def initializeClusters(self):
-        return self.data[0:self.k]
+        return centroids
 
-    def assignPointsToCluster(self,centroids):        
-        for i,point in enumerate(self.data):
+    def initializeClusters(self,data):
+        return data[0:self.k]
+
+    def assignPointsToCluster(self,centroids,data):        
+        for i,point in enumerate(data):
             bestCentroid=0
             bestCentroidDistance=None
             for j,centroid in enumerate(centroids):
@@ -80,9 +83,10 @@ class kMeans:
     
 class UI:
     """Class for presenting to user and receiving input"""
-    def __init__(self,datafile,k=None):
+    def __init__(self,inputDatafile,outputDatafile,k=None):
         """Initialize the UI"""
-        self.datafile=datafile
+        self.inputDatafile=inputDatafile
+        self.outputDatafile=outputDatafile
         self.k=k
 
     def run(self):
@@ -104,15 +108,23 @@ class UI:
                 print("ERROR: Invalid Input!")
                 print("")
                 continue
-        data = self.getData(self.datafile)
-        kmeans = kMeans(k=self.k,data=data)
-        kmeans.run()
+        data = self.getData(self.inputDatafile)
+        data = [float(line) for line in data]
+        kmeans = kMeans(k=self.k)
+        model=kmeans.fit(data)
+        self.saveData(self.outputDatafile,model)
+        data = self.getData(self.outputDatafile)
+        print(data)
 
-    def getData(self,data):
-        with open(data) as f:
+    def getData(self,df):
+        with open(df) as f:
             lines = f.readlines()
-        lines = [float(line.strip()) for line in lines]
+        lines = [line.strip() for line in lines]
         return lines
+
+    def saveData(self,df,data):
+        with open(df, 'w') as file:
+            file.write(str(data))
 
         
 if __name__ == '__main__':
@@ -123,5 +135,5 @@ if __name__ == '__main__':
         k=None
         if (len(sys.argv) == 2):
             k=int(sys.argv[1])
-        ui = UI(datafile,k=k)
+        ui = UI(inputDatafile,outputDatafile,k=k)
         ui.run()
