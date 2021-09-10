@@ -13,6 +13,32 @@ import math
 inputDatafile="prog2-input-data.txt"
 outputDatafile="pickle"
 
+class Logger:
+    level="info"
+
+    @staticmethod
+    def print(*argv):
+        argv = [str(a) for a in argv]
+        s = ''
+        for a in argv:
+            s += a
+        print(s)
+            
+    @staticmethod
+    def error(*argv):
+        if (Logger.level == "error" or Logger.level == "info" or Logger.level == "debug"):        
+            Logger.print("ERROR:",*argv)
+    
+    @staticmethod
+    def info(*argv):
+        if (Logger.level == "info" or Logger.level == "debug"):
+            Logger.print("INFO :",*argv)            
+        
+    @staticmethod
+    def debug(*argv):
+        if (Logger.level == "debug"):
+            Logger.print("DEBUG:",*argv)
+    
 class kMeans:
     def __init__(self,k,maxIterations = 100):
         # 1. Pick k, the number of clusters (input)
@@ -21,28 +47,33 @@ class kMeans:
         self.maxIterations = maxIterations
 
     def fit(self,data):
-        data = data
-        self.assignments = [0] * len(data)
+        Logger.debug(data)
         
-        # 2. Initialize clusters by picking one centroid per cluster
-        # For this assignment you can pick the first k points as
-        # the initial centroids for each corresponding cluster
         centroids = self.initializeClusters(data)
+        Logger.debug("Centroids - ",centroids)
+        assignments = self.assignPointsToCluster(centroids,data)
+        Logger.debug("Assignments - ",assignments)
 
-        # 3. For each point, place it in the cluster whose current
-        # centroid it is nearest
-        self.assignPointsToCluster(centroids,data)
-
-        converged = False
         iterations = 0
         while (True):
-            # 4. After all points are assigned, update the locations of
+            Logger.info(self.toCentroidDict(centroids,assignments,data))            
+            lastCentroids = centroids.copy()
+            
+            # After all points are assigned, update the locations of
             # centroids of the k clusters
-            centroids = self.updateCentroids(centroids)
+            centroids = self.updateCentroids(centroids,data,assignments)
+            Logger.debug("Centroids - ",centroids)
 
-            # 5. Reassign all points to their closest centroid. This
+            converged = True
+            for i,*_ in enumerate(centroids):
+                Logger.debug("Comparing:",centroids[i]," to ",lastCentroids[i])
+                if (not(math.isclose(centroids[i],lastCentroids[i]))):
+                    converged=False
+
+            # Reassign all points to their closest centroid. This
             # sometimes moves points between clusters
-            self.assignPointsToCluster(centroids,data)
+            assignments = self.assignPointsToCluster(centroids,data)
+            Logger.debug("Assignments - ",assignments)
 
             if (converged == True):
                 break
@@ -51,13 +82,23 @@ class kMeans:
             if (self.maxIterations != None
                 and iterations > self.maxIterations):
                 break
-
+            
         return centroids
 
     def initializeClusters(self,data):
+        """
+        Initialize clusters by picking one centroid per cluster
+        For this assignment you can pick the first k points as
+        the initial centroids for each corresponding cluster
+        """
         return data[0:self.k]
 
-    def assignPointsToCluster(self,centroids,data):        
+    def assignPointsToCluster(self,centroids,data):
+        """
+        For each point, place it in the cluster whose current
+        centroid it is nearest
+        """
+        assignments = [0] * len(data)        
         for i,point in enumerate(data):
             bestCentroid=0
             bestCentroidDistance=None
@@ -69,7 +110,8 @@ class kMeans:
                 elif (bestCentroidDistance > trialDistance):
                     bestCentroid=j
                     bestCentroidDistance=trialDistance
-            self.assignments[i]=bestCentroid
+            assignments[i]=bestCentroid
+        return assignments
 
     def distance(self,a,b):
         return math.sqrt((a-b)**2)
@@ -77,10 +119,60 @@ class kMeans:
         # term2 = (a[1]-b[1])**2
         # return sqrt(term1+term2)
 
-    def updateCentroids(self,centroids):
+    def updateCentroids(self,centroids,data,assignments):
+        # centroids = [0] * len(centroids)
+        calculators = [OnlineCalculator() for c in centroids]
+        for i,d in enumerate(data):
+            c = assignments[i]
+            centroids[c] = calculators[c].calculate(d)[0]
         return centroids
 
-    
+    def toCentroidDict(self,centroids,assignments,data):
+        Logger.info(centroids)
+        Logger.info(assignments)
+        Logger.info(data)
+        
+        centroidsDict = {}
+
+        for i in range(len(centroids)):
+            centroidsDict[i] = []
+            for j in range(len(assignments)):
+                Logger.debug(i," ",j," ",centroids[i]," ",assignments[j])
+                if i == assignments[j]:
+                    centroidsDict[i].append(data[j])
+                    
+        return centroidsDict
+
+class OnlineCalculator:
+    """A calculator for mean and standard deviation using online algorithm"""
+    def __init__(self):
+        """Initialize online calculator"""
+        # Make sure everything is a float
+        self.xbarn = float(0)
+        self.xbarnm1 = float(0)
+        self.s2n = float(0)
+        self.s2nm1 = float(0)
+        self.n = float(0)
+        self.nm1 = float(0)
+        self.nm2 = float(0)
+
+    def calculate(self, xn):
+        """Recalculate mean and sd with added value xn"""
+        xn = float(xn)
+
+        self.xbarnm1 = self.xbarn
+        self.s2nm1 = self.s2n
+        self.n = self.n+float(1)
+        self.xbarn = self.xbarnm1 + ((xn-self.xbarnm1)/self.n)
+        if (self.n > 1):
+            # It is less error prone to store these as
+            # separate variables
+            self.nm2 = self.n-2.0
+            self.nm1 = self.n-1.0
+            self.s2n = ((self.nm2/self.nm1)*self.s2nm1) + \
+                (((xn - self.xbarnm1)**2)/self.n)
+        return (self.xbarn,  self.s2n)
+        
 class UI:
     """Class for presenting to user and receiving input"""
     def __init__(self,inputDatafile,outputDatafile,k=None):
@@ -100,7 +192,7 @@ class UI:
         while True:
             try:
                 if (self.k == None):
-                    self.k = int(input("Enter a number: "))
+                    self.k = int(input("Enter the number of clusters: "))
                 break
             except ValueError:
                 # Catch cases where user does not input
