@@ -14,7 +14,7 @@ inputDatafile="prog2-input-data.txt"
 outputDatafile="pickle"
 
 class Logger:
-    level="info"
+    level="none"
 
     @staticmethod
     def print(*argv):
@@ -45,6 +45,9 @@ class kMeans:
         self.k = k
         self.currentIteration = 0
         self.maxIterations = maxIterations
+        self.assignments = []
+        self.centroids = []
+        self.data = []
 
     def fit(self,data):
         Logger.debug(data)
@@ -54,8 +57,11 @@ class kMeans:
         assignments = self.assignPointsToCluster(centroids,data)
         Logger.debug("Assignments - ",assignments)
 
-        iterations = 0
+        iterations = 1
         while (True):
+            print("Iteration ",iterations)
+            print(self.dictToStr(self.toCentroidDict(centroids,assignments,data)))
+            print("")
             Logger.info(self.toCentroidDict(centroids,assignments,data))            
             lastCentroids = centroids.copy()
             
@@ -82,9 +88,17 @@ class kMeans:
             if (self.maxIterations != None
                 and iterations > self.maxIterations):
                 break
-            
-        return centroids
 
+        self.assignments=assignments
+        self.centroids=centroids
+        self.data=data
+
+    def __str__(self):
+        string=""
+        for i,d in enumerate(self.data):
+            string += "Point " + str(d) + " in cluster " + str(self.assignments[i]) + "\n"
+        return string
+                
     def initializeClusters(self,data):
         """
         Initialize clusters by picking one centroid per cluster
@@ -107,7 +121,7 @@ class kMeans:
                 if (bestCentroidDistance == None):
                     bestCentroid=j
                     bestCentroidDistance=trialDistance
-                elif (bestCentroidDistance > trialDistance):
+                elif (bestCentroidDistance >= trialDistance):
                     bestCentroid=j
                     bestCentroidDistance=trialDistance
             assignments[i]=bestCentroid
@@ -142,6 +156,16 @@ class kMeans:
                     centroidsDict[i].append(data[j])
                     
         return centroidsDict
+
+    def dictToStr(self,dictionary):
+        string=""
+        needNewLine=False
+        for k,v in dictionary.items():
+            if (needNewLine):
+                string += "\n"
+            string += str(k) + " " + str(v)
+            needNewLine=True
+        return string
 
 class OnlineCalculator:
     """A calculator for mean and standard deviation using online algorithm"""
@@ -203,8 +227,9 @@ class UI:
         data = self.getData(self.inputDatafile)
         data = [float(line) for line in data]
         kmeans = kMeans(k=self.k)
-        model=kmeans.fit(data)
-        self.saveData(self.outputDatafile,model)
+        kmeans.fit(data)
+        print(kmeans)
+        self.saveData(self.outputDatafile,str(kmeans))
         data = self.getData(self.outputDatafile)
         print(data)
 
