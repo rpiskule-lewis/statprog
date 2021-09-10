@@ -11,7 +11,7 @@ import sys
 import math
 
 inputDatafile="prog2-input-data.txt"
-outputDatafile="pickle"
+outputDatafile="prog2-output-data.txt"
 
 class Logger:
     level="none"
@@ -207,9 +207,9 @@ class UI:
 
     def run(self):
         """Run the main program"""
-        print("DATA-51100,  Fall 2021")
-        print("Vinod Rufus Motani")        
-        print("Robert Piskule")
+        print("DATA-51100, Fall 2021")
+        print("NAME: Vinod Rufus Motani")        
+        print("NAME: Robert Piskule")
         print("PROGRAMMING ASSIGNMENT #2")
         print("")
 
@@ -217,6 +217,7 @@ class UI:
             try:
                 if (self.k == None):
                     self.k = int(input("Enter the number of clusters: "))
+                print("")                    
                 break
             except ValueError:
                 # Catch cases where user does not input
@@ -228,10 +229,10 @@ class UI:
         data = [float(line) for line in data]
         kmeans = kMeans(k=self.k)
         kmeans.fit(data)
-        print(kmeans)
+        # print(kmeans)
         self.saveData(self.outputDatafile,str(kmeans))
         data = self.getData(self.outputDatafile)
-        print(data)
+        print("\n".join(data))
 
     def getData(self,df):
         with open(df) as f:
