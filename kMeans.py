@@ -7,13 +7,36 @@
 # Programming Assignment 2 - k-Means Clustering
 ##############################################################
 
+# Imported system library because I am *extremely* lazy
+# when working from command line
 import sys
+
+# Imported math to perform math.sqrt() and math.isclose()
+# math.sqrt() is "required" for proper distance calculations,
+# although since we are only comparing magnitude it is
+# probably not needed.
+#
+# We also use it to calculate whether centroid points have
+# changed, and since we cannot directly compare floats to be
+# equal, we have are using math.isclose() to make sure the
+# centroids have not changed
 import math
 
-inputDatafile = "prog2-input-data.txt"
-outputDatafile = "prog2-output-data.txt"
+# This library is required to perform proper lookup of paths
+# on operating systems. This was developed on Windows with \
+# as a path separator, however, Mac and Linux use /
+import os
+
+# Using pwd() was a requirement. However, this was not necessary
+# on Windows. pwd() is actually in the os library, as os.getcwd()
+inputDatafile = os.getcwd() + os.path.sep + "prog2-input-data.txt"
+outputDatafile = os.getcwd() + os.path.sep + "prog2-output-data.txt"
 
 
+# This is a helper class that I will probably end up using from
+# one assignment to the next. It simply allows me to enable and
+# disable logging at various levels. This is written because
+# using imports is not allowed.
 class Logger:
     level = "none"
 
@@ -42,6 +65,10 @@ class Logger:
             Logger.print("DEBUG:", *argv)
 
 
+# This is the main kMeans class. It is implemented to resemble
+# the scikitlearn models. If I had more time I would have
+# decoupled the data from the class, such that predicting
+# was separate; that is not required for this assignment.
 class kMeans:
     def __init__(self, k, maxIterations=100):
         # 1. Pick k,  the number of clusters (input)
@@ -55,8 +82,14 @@ class kMeans:
     def fit(self, data):
         Logger.debug(data)
 
+        # 2. Initialize the cluster by picking one centroid per
+        # cluster. For this assignment, we can pick the first k
+        # points as initial centroids for each corresponding cluster
         centroids = self.initializeClusters(data)
         Logger.debug("Centroids - ", centroids)
+
+        # 3. For each point, place it in the cluster whose current
+        # centroids is nearest
         assignments = self.assignPointsToCluster(centroids, data)
         Logger.debug("Assignments - ", assignments)
 
@@ -68,32 +101,50 @@ class kMeans:
             print("")
             Logger.info(self.toCentroidDict(centroids, assignments, data))
             lastCentroids = centroids.copy()
+            lastAssignments = assignments.copy()
 
-            # After all points are assigned,  update the locations of
+            # 4. After all points are assigned,  update the locations of
             # centroids of the k clusters
             centroids = self.updateCentroids(centroids, data, assignments)
             Logger.debug("Centroids - ", centroids)
 
+            # 5. Reassign all points to their closest centroid. This
+            # sometimes moves points between clusters
+            assignments = self.assignPointsToCluster(centroids, data)
+            Logger.debug("Assignments - ", assignments)
+
+            # 6. Repeate 4,5 until convergence. Convergence occurs
+            # when points don't move between clusters and centroids
+            # stabilize
             converged = True
+
+            # Then we make sure that our point to centroid assignments
+            # have not changed
+            for i, *_ in enumerate(assignments):
+                Logger.debug("Comparing:", assignments[i], " to ",
+                             lastAssignments[i])
+                if (not(assignments[i], lastAssignments[i])):
+                    converged = False
+
+            # First we make sure that our centroids haven't changed
             for i, *_ in enumerate(centroids):
                 Logger.debug("Comparing:", centroids[i], " to ",
                              lastCentroids[i])
                 if (not(math.isclose(centroids[i], lastCentroids[i]))):
                     converged = False
 
-            # Reassign all points to their closest centroid. This
-            # sometimes moves points between clusters
-            assignments = self.assignPointsToCluster(centroids, data)
-            Logger.debug("Assignments - ", assignments)
-
             if (converged):
                 break
 
+            # This is the maximum amount of time we are willing to
+            # attempt convergence
             iterations += 1
             if (self.maxIterations is not None
                     and iterations > self.maxIterations):
                 break
 
+        # Save the data that we calculated so it can be
+        # used in the to string function
         self.assignments = assignments
         self.centroids = centroids
         self.data = data
@@ -134,20 +185,30 @@ class kMeans:
         return assignments
 
     def distance(self, a, b):
+        """
+        Return the distance between two points.
+        """
+        # Using the sqrt is not strictly necessary since
+        # we are only comparing magnitude
         return math.sqrt((a-b)**2)
-        # term1 = (a[0]-b[0])**2
-        # term2 = (a[1]-b[1])**2
-        # return sqrt(term1+term2)
 
     def updateCentroids(self, centroids, data, assignments):
-        # centroids = [0] * len(centroids)
-        calculators = [OnlineCalculator() for c in centroids]
+        """
+        Update the centroids as being the average of all
+        the data assigned to them
+        """
+        newCentroids = [0] * len(centroids)
+        calculators = [OnlineCalculator() for c in newCentroids]
         for i, d in enumerate(data):
             c = assignments[i]
-            centroids[c] = calculators[c].calculate(d)[0]
-        return centroids
+            newCentroids[c] = calculators[c].calculate(d)[0]
+        return newCentroids
 
     def toCentroidDict(self, centroids, assignments, data):
+        """
+        This is a helper function to allow for pretty
+        printing of the kMeans class
+        """
         Logger.info(centroids)
         Logger.info(assignments)
         Logger.info(data)
@@ -164,6 +225,9 @@ class kMeans:
         return centroidsDict
 
     def dictToStr(self, dictionary):
+        """
+        Convert a dictionary to string format
+        """
         string = ""
         needNewLine = False
         for k, v in dictionary.items():
@@ -215,7 +279,7 @@ class UI:
 
     def run(self):
         """Run the main program"""
-        print("DATA-51100,  Fall 2021")
+        print("DATA-51100, Fall 2021")
         print("NAME: Vinod Rufus Motani")
         print("NAME: Robert Piskule")
         print("PROGRAMMING ASSIGNMENT #2")
@@ -233,33 +297,44 @@ class UI:
                 print("ERROR: Invalid Input!")
                 print("")
                 continue
+
+        # Get the data
         data = self.getData(self.inputDatafile)
         data = [float(line) for line in data]
+
+        # Use the kMeans algorithm
         kmeans = kMeans(k=self.k)
         kmeans.fit(data)
-        # print(kmeans)
+
+        # Save the data
         self.saveData(self.outputDatafile, str(kmeans))
+
+        # We re-read the data as a testing measure
         data = self.getData(self.outputDatafile)
+
+        # Output the data to the screen
         print("\n".join(data))
 
     def getData(self, df):
+        """
+        Open a file containing one-dimensional points
+        """
         with open(df) as f:
             lines = f.readlines()
         lines = [line.strip() for line in lines]
         return lines
 
     def saveData(self, df, data):
+        """
+        Save data to a file
+        """
         with open(df,  'w') as file:
             file.write(str(data))
 
 
 if __name__ == '__main__':
-    if (len(sys.argv) == 2 and sys.argv[1] == "test"):
-        del sys.argv[1]
-        unittest.main()
-    else:
-        k = None
-        if (len(sys.argv) == 2):
-            k = int(sys.argv[1])
-        ui = UI(inputDatafile, outputDatafile, k=k)
-        ui.run()
+    k = None
+    if (len(sys.argv) == 2):
+        k = int(sys.argv[1])
+    ui = UI(inputDatafile, outputDatafile, k=k)
+    ui.run()
